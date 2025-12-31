@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Neon Panzer: Infinite War</title>
+    <title>Neon Panzer: Zone Warfare</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     
@@ -102,6 +102,21 @@
             pointer-events: none; 
         }
         
+        /* Arrow to portal */
+        #portalArrow {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            color: #a855f7;
+            font-size: 40px;
+            text-align: center;
+            line-height: 40px;
+            pointer-events: none;
+            z-index: 15;
+            transition: transform 0.1s;
+            filter: drop-shadow(0 0 10px #a855f7);
+        }
+        
         /* Hidden class */
         .hidden { display: none !important; }
         
@@ -131,6 +146,41 @@
             animation: spin 1s ease-in-out infinite;
             margin-bottom: 20px;
         }
+        
+        /* Tank Selection */
+        .tank-card {
+            transition: all 0.3s;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .tank-card:hover {
+            transform: translateY(-5px);
+            border-color: #3b82f6;
+        }
+        
+        .tank-card.selected {
+            border-color: #10b981;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+        }
+        
+        /* Zone Styles */
+        .zone-marker {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border: 3px dashed #fbbf24;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+            opacity: 0.7;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+        }
     </style>
 </head>
 <body>
@@ -141,6 +191,9 @@
         <div class="text-sm text-gray-400 mt-4">إذا استمر التحميل، حاول تحديث الصفحة</div>
     </div>
 
+    <!-- Portal Arrow -->
+    <div id="portalArrow" class="hidden">↑</div>
+
     <!-- HUD -->
     <div id="hud" class="hidden absolute inset-0 pointer-events-none z-10">
         <!-- Top Info -->
@@ -148,9 +201,13 @@
             <div class="flex flex-col gap-1">
                 <div class="glass-panel px-4 py-2 rounded-xl border-l-4 border-blue-500 flex items-center gap-3">
                     <span class="text-xs text-gray-400 font-bold">المنطقة</span>
-                    <span id="levelDisplay" class="text-blue-400 font-black text-2xl">1</span>
+                    <span id="zoneDisplay" class="text-blue-400 font-black text-2xl">1</span>
+                    <div class="h-6 w-px bg-gray-700 mx-2"></div>
+                    <span class="text-xs text-gray-400 font-bold">الموجة</span>
+                    <span id="waveDisplay" class="text-cyan-400 font-black text-2xl">1</span>
                 </div>
                 <div class="text-xs text-gray-500 mt-1" id="enemiesLeft">الأعداء: 0</div>
+                <div class="text-xs text-yellow-500" id="zoneProgress">التقدم: 0%</div>
             </div>
 
             <div class="flex flex-col items-end gap-2">
@@ -161,6 +218,8 @@
                 <div class="w-48 h-5 bg-gray-900 rounded border border-gray-700 relative overflow-hidden skew-x-[-10deg]">
                     <div id="hpBar" class="hp-segment"></div>
                 </div>
+                <!-- Tank Info -->
+                <div class="text-xs text-gray-400" id="tankType">دبابة أساسية</div>
             </div>
         </div>
 
@@ -179,13 +238,18 @@
         <div id="missionStatus" class="hidden absolute top-24 left-1/2 transform -translate-x-1/2 glass-panel px-6 py-2 rounded-full text-green-400 font-bold animate-pulse border border-green-500/50">
             ✅ تم تطهير المنطقة! اتجه للبوابة
         </div>
+        
+        <!-- Zone Warning -->
+        <div id="zoneWarning" class="hidden absolute top-36 left-1/2 transform -translate-x-1/2 glass-panel px-6 py-2 rounded-full text-yellow-400 font-bold border border-yellow-500/50">
+            ⚡ المنطقة ستنتهي قريباً!
+        </div>
     </div>
 
     <!-- Main Menu -->
     <div id="mainMenu" class="game-ui z-40 bg-[#020203] pointer-auto flex-col overflow-y-auto">
         <div class="w-full max-w-md p-6 flex flex-col items-center min-h-screen pt-12">
             <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-blue-400 to-indigo-600 mb-2 neon-text">PANZER</h1>
-            <h2 class="text-2xl font-bold text-gray-500 mb-8 tracking-[0.5em]">INFINITE WAR</h2>
+            <h2 class="text-2xl font-bold text-gray-500 mb-8 tracking-[0.5em]">ZONE WARFARE</h2>
             
             <div class="glass-panel w-full p-5 rounded-2xl mb-8 flex justify-between items-center relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
@@ -195,14 +259,25 @@
                 </div>
                 <div class="text-5xl">💎</div>
             </div>
+            
+            <!-- Tank Selection -->
+            <div class="glass-panel w-full p-4 rounded-xl mb-6">
+                <div class="text-lg font-bold text-white mb-3 text-center">اختر دبابتك</div>
+                <div class="grid grid-cols-2 gap-3" id="tankSelection">
+                    <!-- Tanks will be loaded here -->
+                </div>
+            </div>
 
             <div class="w-full grid gap-4 z-10">
                 <button id="btnStart" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-xl text-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95 cursor-pointer">
                     إنتشار في الميدان
                 </button>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-3 gap-4">
                     <button id="btnUpgrade" class="glass-panel hover:bg-white/5 text-white font-bold py-4 rounded-xl active:scale-95 flex flex-col items-center gap-2 cursor-pointer">
                         <span class="text-2xl">🔧</span> <span>الورشة</span>
+                    </button>
+                    <button id="btnTanks" class="glass-panel hover:bg-white/5 text-white font-bold py-4 rounded-xl active:scale-95 flex flex-col items-center gap-2 cursor-pointer">
+                        <span class="text-2xl">⚙️</span> <span>الدبابات</span>
                     </button>
                     <button id="btnAllies" class="glass-panel hover:bg-white/5 text-white font-bold py-4 rounded-xl active:scale-95 flex flex-col items-center gap-2 cursor-pointer">
                         <span class="text-2xl">🤖</span> <span>الحلفاء</span>
@@ -211,6 +286,20 @@
             </div>
             
             <button id="btnReset" class="mt-8 text-xs text-red-900 hover:text-red-500 cursor-pointer">إعادة تعيين البيانات</button>
+        </div>
+    </div>
+
+    <!-- Tank Selection Screen -->
+    <div id="tankScreen" class="game-ui hidden z-50 bg-[#050508] pointer-auto flex-col">
+        <div class="w-full max-w-md p-4 h-full flex flex-col">
+            <div class="flex justify-between items-center mb-6 py-4 border-b border-gray-800">
+                <h2 class="text-2xl font-bold text-white">⚙️ معرض الدبابات</h2>
+                <div class="text-yellow-400 font-bold" id="tankGoldDisplay">0 💎</div>
+            </div>
+            <div id="tankList" class="space-y-4 overflow-y-auto flex-1 pb-20">
+                <!-- Tank cards will be loaded here -->
+            </div>
+            <button id="btnBackToMenuFromTanks" class="w-full bg-gray-800 text-white font-bold py-4 rounded-xl mt-4 cursor-pointer">عودة للقاعدة</button>
         </div>
     </div>
 
@@ -233,7 +322,7 @@
         
         <div class="glass-panel p-6 rounded-2xl w-64 text-center mb-8 border-t-4 border-red-600">
             <div class="text-xs text-gray-500 uppercase mb-2">وصلت للمنطقة</div>
-            <div class="text-white text-4xl font-black mb-4" id="endLevel">1</div>
+            <div class="text-white text-4xl font-black mb-4" id="endZone">1</div>
             <div class="border-t border-gray-700 pt-4 flex justify-between px-4">
                 <span class="text-gray-400">غنائم:</span>
                 <span class="text-yellow-400 font-bold" id="endGold">0</span>
@@ -249,52 +338,159 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // تعريف متغيرات Firebase بشكل صحيح
-        window.__app_id = 'neon-panzer';
+        // تعريف المتغيرات
+        window.__app_id = 'neon-panzer-zone';
         window.__firebase_config = '{}';
     </script>
 
     <script type="module">
-        // --- Config ---
+        // --- إعدادات اللعبة ---
+        
+        // أنواع الدبابات المتاحة
+        const TANK_TYPES = {
+            basic: {
+                name: 'دبابة أساسية',
+                desc: 'دبابة متوازنة مناسبة للمبتدئين',
+                color: '#22d3ee',
+                speed: 3,
+                hp: 100,
+                damage: 10,
+                rate: 20,
+                cost: 0,
+                unlocked: true,
+                special: 'بدون قدرة خاصة'
+            },
+            assault: {
+                name: 'دبابة اقتحام',
+                desc: 'سرعة عالية مع إطلاق نار سريع',
+                color: '#3b82f6',
+                speed: 3.5,
+                hp: 80,
+                damage: 8,
+                rate: 15,
+                cost: 500,
+                unlocked: false,
+                special: '+20% سرعة'
+            },
+            heavy: {
+                name: 'دبابة ثقيلة',
+                desc: 'درع سميك مع ضرر عالي',
+                color: '#ef4444',
+                speed: 2.2,
+                hp: 150,
+                damage: 15,
+                rate: 25,
+                cost: 1000,
+                unlocked: false,
+                special: '+50% صحة'
+            },
+            sniper: {
+                name: 'دبابة قناص',
+                desc: 'مدى طويل مع دقة عالية',
+                color: '#10b981',
+                speed: 2.8,
+                hp: 90,
+                damage: 25,
+                rate: 40,
+                cost: 1500,
+                unlocked: false,
+                special: 'مدى +30%'
+            },
+            tank: {
+                name: 'دبابة حربية',
+                desc: 'متعددة الاستخدامات مع قدرات دفاعية',
+                color: '#8b5cf6',
+                speed: 2.5,
+                hp: 120,
+                damage: 12,
+                rate: 22,
+                cost: 2000,
+                unlocked: false,
+                special: 'درع متطور'
+            },
+            elite: {
+                name: 'دبابة النخبة',
+                desc: 'الدبابة الأقوى مع جميع الإمكانيات',
+                color: '#fbbf24',
+                speed: 3.2,
+                hp: 130,
+                damage: 18,
+                rate: 18,
+                cost: 5000,
+                unlocked: false,
+                special: 'جميع المزايا'
+            }
+        };
+
+        // التطويرات المتاحة
         const UPGRADES = {
             damage: { 
                 name: 'مدفع بلازما', 
-                desc: 'زيادة الضرر', 
+                desc: 'زيادة الضرر +15% لكل مستوى', 
                 max: 20, 
                 cost: l => (l+1)*100, 
-                val: l => l * 0.15 
+                val: l => l * 0.15,
+                category: 'attack'
             },
             health: { 
                 name: 'درع مركب', 
-                desc: 'زيادة الصحة', 
+                desc: 'زيادة الصحة +25 لكل مستوى', 
                 max: 20, 
                 cost: l => (l+1)*100, 
-                val: l => l * 25 
+                val: l => l * 25,
+                category: 'defense'
             },
             speed:  { 
                 name: 'محرك تيربو', 
-                desc: 'سرعة الحركة', 
+                desc: 'سرعة الحركة +8% لكل مستوى', 
                 max: 10, 
                 cost: l => (l+1)*150, 
-                val: l => l * 0.08 
+                val: l => l * 0.08,
+                category: 'mobility'
             },
             rate:   { 
                 name: 'ملقم آلي', 
-                desc: 'سرعة الإطلاق', 
+                desc: 'سرعة الإطلاق +10% لكل مستوى', 
                 max: 10, 
                 cost: l => (l+1)*200, 
-                val: l => l * 0.05 
+                val: l => l * 0.1,
+                category: 'attack'
             },
             ally:   { 
                 name: 'درون مساند', 
                 desc: 'شراء حليف (الحد الأقصى 3)', 
                 max: 3, 
                 cost: l => (l+1)*1000, 
-                val: l => l 
-            } 
+                val: l => l,
+                category: 'support'
+            },
+            range: {
+                name: 'نظام تصويب',
+                desc: 'زيادة مدى الرماية +10% لكل مستوى',
+                max: 10,
+                cost: l => (l+1)*180,
+                val: l => l * 0.1,
+                category: 'attack'
+            },
+            regen: {
+                name: 'إصلاح تلقائي',
+                desc: 'استعادة 1% من الصحة كل 10 ثوان',
+                max: 5,
+                cost: l => (l+1)*300,
+                val: l => l * 0.01,
+                category: 'defense'
+            },
+            critical: {
+                name: 'ضربات حرجة',
+                desc: 'فرصة ضربة حرجة +5% لكل مستوى',
+                max: 5,
+                cost: l => (l+1)*250,
+                val: l => l * 0.05,
+                category: 'attack'
+            }
         };
 
-        // --- Engine ---
+        // --- محرك اللعبة ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         let W = canvas.width = window.innerWidth;
@@ -309,31 +505,44 @@
                     health: 0, 
                     speed: 0, 
                     rate: 0, 
-                    ally: 0 
-                } 
+                    ally: 0,
+                    range: 0,
+                    regen: 0,
+                    critical: 0
+                },
+                unlockedTanks: ['basic'],
+                selectedTank: 'basic'
             },
             
-            // Runtime
-            level: 1,
+            // وقت التشغيل
+            currentZone: 1,
+            currentWave: 1,
+            zoneEnemies: 0,
+            enemiesDefeated: 0,
             runGold: 0,
             portalOpen: false,
             
-            // Objects
+            // الكائنات
             player: null,
             allies: [],
             enemies: [],
             walls: [],
             grass: [],
+            zoneMarkers: [],
             bullets: [],
             particles: [],
             texts: [],
             portal: null,
             
             camera: { x: 0, y: 0, shake: 0 },
-            input: { active: false, x: 0, y: 0, px: 0, py: 0 }
+            input: { active: false, x: 0, y: 0, px: 0, py: 0 },
+            
+            // المؤقتات
+            lastRegen: 0,
+            gameTime: 0
         };
 
-        // --- Audio ---
+        // --- نظام الصوت ---
         let Audio = {
             synth: null,
             init: async () => {
@@ -355,79 +564,152 @@
                 if(id=='kill') Audio.bass.triggerAttackRelease("C1", "8n");
                 if(id=='coin') Audio.synth.triggerAttackRelease("E6", "32n", undefined, 0.05);
                 if(id=='portal') Audio.synth.triggerAttackRelease(["C4","E4","G4"], "4n");
+                if(id=='upgrade') Audio.synth.triggerAttackRelease(["C5","E5","G5"], "8n");
             }
         };
 
-        // --- Map Generator ---
-        function generateLevel(level) {
-            const size = 2000 + (level * 200);
-            const wallCount = 30 + level * 5;
-            const grassCount = 40 + level * 5;
+        // --- توليد المناطق والموجات ---
+        function generateZone(zone) {
+            const zoneSize = 2000 + (zone * 300);
+            const zoneType = zone % 5; // 5 أنواع مختلفة من المناطق
             
             Game.walls = [];
             Game.grass = [];
+            Game.zoneMarkers = [];
             
-            // Borders
-            Game.walls.push({x: -size/2, y: -size/2, w: size, h: 50});
-            Game.walls.push({x: -size/2, y: size/2 - 50, w: size, h: 50});
-            Game.walls.push({x: -size/2, y: -size/2, w: 50, h: size});
-            Game.walls.push({x: size/2 - 50, y: -size/2, w: 50, h: size});
+            // تحديد نوع المنطقة
+            let zoneColor, zoneTheme;
+            switch(zoneType) {
+                case 0: // منطقة صحراوية
+                    zoneColor = '#d97706';
+                    zoneTheme = 'صحراء';
+                    break;
+                case 1: // منطقة حضرية
+                    zoneColor = '#4b5563';
+                    zoneTheme = 'مدينة';
+                    break;
+                case 2: // منطقة غابات
+                    zoneColor = '#065f46';
+                    zoneTheme = 'غابة';
+                    break;
+                case 3: // منطقة جليدية
+                    zoneColor = '#0ea5e9';
+                    zoneTheme = 'جليد';
+                    break;
+                case 4: // منطقة صناعية
+                    zoneColor = '#7c3aed';
+                    zoneTheme = 'صناعية';
+                    break;
+            }
+            
+            // عرض معلومات المنطقة
+            showZoneInfo(zone, zoneTheme);
+            
+            // حدود المنطقة
+            Game.walls.push({x: -zoneSize/2, y: -zoneSize/2, w: zoneSize, h: 50, color: zoneColor});
+            Game.walls.push({x: -zoneSize/2, y: zoneSize/2 - 50, w: zoneSize, h: 50, color: zoneColor});
+            Game.walls.push({x: -zoneSize/2, y: -zoneSize/2, w: 50, h: zoneSize, color: zoneColor});
+            Game.walls.push({x: zoneSize/2 - 50, y: -zoneSize/2, w: 50, h: zoneSize, color: zoneColor});
 
-            // Random Walls
-            for(let i=0; i<wallCount; i++) {
-                const w = Math.random() * 150 + 50;
-                const h = Math.random() * 150 + 50;
-                const x = (Math.random() - 0.5) * (size - 200);
-                const y = (Math.random() - 0.5) * (size - 200);
+            // علامات المنطقة (نقاط توجيه)
+            const markerCount = 8 + zone;
+            for(let i = 0; i < markerCount; i++) {
+                const angle = (i / markerCount) * Math.PI * 2;
+                const dist = zoneSize/2 - 100;
+                Game.zoneMarkers.push({
+                    x: Math.cos(angle) * dist,
+                    y: Math.sin(angle) * dist,
+                    size: 30,
+                    color: zoneColor
+                });
+            }
+
+            // جدران عشوائية
+            const wallCount = 25 + zone * 3;
+            for(let i = 0; i < wallCount; i++) {
+                const w = Math.random() * 100 + 80;
+                const h = Math.random() * 100 + 80;
+                const x = (Math.random() - 0.5) * (zoneSize - 300);
+                const y = (Math.random() - 0.5) * (zoneSize - 300);
                 if(Math.hypot(x, y) > 300) {
-                    Game.walls.push({x, y, w, h});
+                    Game.walls.push({x, y, w, h, color: '#374151'});
                 }
             }
 
-            // Grass
-            for(let i=0; i<grassCount; i++) {
-                const w = Math.random() * 200 + 100;
-                const h = Math.random() * 200 + 100;
-                const x = (Math.random() - 0.5) * (size - 200);
-                const y = (Math.random() - 0.5) * (size - 200);
-                Game.grass.push({x, y, w, h});
+            // غطاء (عشب/أشجار/صخور)
+            const coverCount = 30 + zone * 4;
+            for(let i = 0; i < coverCount; i++) {
+                const w = Math.random() * 150 + 100;
+                const h = Math.random() * 150 + 100;
+                const x = (Math.random() - 0.5) * (zoneSize - 300);
+                const y = (Math.random() - 0.5) * (zoneSize - 300);
+                Game.grass.push({x, y, w, h, color: zoneColor + '40'});
             }
 
-            // Enemies
-            const enemyCount = 5 + Math.floor(level * 1.5);
+            // تحديد عدد الأعداء للمنطقة
+            Game.zoneEnemies = 8 + Math.floor(zone * 2.5);
+            Game.enemiesDefeated = 0;
+            spawnWave(Game.currentWave, zone);
+
+            // البوابة في وسط المنطقة
+            Game.portal = { 
+                x: 0, 
+                y: -zoneSize/2 + 200, 
+                r: 45, 
+                active: false,
+                color: zoneColor
+            };
+            Game.portalOpen = false;
+            
+            // تحديث واجهة المنطقة
+            updateZoneUI();
+        }
+
+        function spawnWave(wave, zone) {
             Game.enemies = [];
-            for(let i=0; i<enemyCount; i++) {
+            const enemyCount = Math.min(Game.zoneEnemies - Game.enemiesDefeated, 5 + Math.floor(wave * 1.5));
+            
+            for(let i = 0; i < enemyCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const dist = Math.random() * (size/2 - 200) + 300;
+                const dist = Math.random() * 800 + 400;
                 
+                // أنواع الأعداء بناءً على المنطقة والموجة
                 let type = 'scout';
-                let hp = 30 + level * 5;
+                let hp = 30 + zone * 8 + wave * 3;
                 let speed = 2.5;
                 let enemySize = 20;
                 let color = '#ef4444';
-                let weapon = { rate: 60, dmg: 5 + level };
+                let weapon = { rate: 60, dmg: 5 + zone + wave };
 
-                if(level > 2 && Math.random() < 0.3) { 
+                if(zone > 2 && Math.random() < 0.3) { 
                     type = 'heavy'; 
-                    hp*=2; 
-                    speed=1.5; 
-                    enemySize=30; 
-                    color='#8b5cf6'; 
-                    weapon.dmg*=2; 
+                    hp *= 1.8; 
+                    speed = 1.5; 
+                    enemySize = 32; 
+                    color = '#8b5cf6'; 
+                    weapon.dmg *= 1.5; 
                 }
-                if(level > 4 && Math.random() < 0.2) { 
+                if(zone > 4 && Math.random() < 0.25) { 
                     type = 'sniper'; 
-                    hp*=0.5; 
-                    speed=2; 
-                    enemySize=18; 
-                    color='#fbbf24'; 
-                    weapon.rate=120; 
-                    weapon.dmg*=3; 
+                    hp *= 0.6; 
+                    speed = 2; 
+                    enemySize = 18; 
+                    color = '#fbbf24'; 
+                    weapon.rate = 120; 
+                    weapon.dmg *= 2; 
+                }
+                if(zone > 6 && Math.random() < 0.2) { 
+                    type = 'boss'; 
+                    hp *= 3; 
+                    speed = 1.2; 
+                    enemySize = 45; 
+                    color = '#dc2626'; 
+                    weapon.dmg *= 2.5; 
                 }
 
                 Game.enemies.push({
-                    x: Math.cos(angle)*dist, 
-                    y: Math.sin(angle)*dist,
+                    x: Math.cos(angle) * dist, 
+                    y: Math.sin(angle) * dist,
                     hp, 
                     maxHp: hp, 
                     speed, 
@@ -436,71 +718,93 @@
                     type, 
                     weapon,
                     angle: 0, 
-                    lastShot: Math.random()*100
+                    lastShot: Math.random() * 100,
+                    score: 10 + zone * 2
                 });
             }
-
-            // Portal
-            Game.portal = { 
-                x: 0, 
-                y: -size/2 + 150, 
-                r: 40, 
-                active: false 
-            };
-            Game.portalOpen = false;
         }
 
-        // --- Logic ---
+        // --- منطق اللعبة ---
         function startGame() {
-            // Hide loading screen
+            // إخفاء شاشة التحميل
             document.getElementById('loadingOverlay').classList.add('hidden');
             
-            // Stats
+            // إحصائيات اللاعب بناءً على الدبابة والتطويرات
+            const tankType = TANK_TYPES[Game.data.selectedTank];
             const ups = Game.data.upgrades;
-            const hp = 100 + UPGRADES.health.val(ups.health);
-            const speed = 3 * (1 + UPGRADES.speed.val(ups.speed));
-            const dmg = 10 * (1 + UPGRADES.damage.val(ups.damage));
-            const rate = Math.max(5, 20 * (1 - UPGRADES.rate.val(ups.rate)));
+            
+            // حساب القيم الأساسية
+            const baseHP = tankType.hp;
+            const hpBonus = UPGRADES.health.val(ups.health);
+            const totalHP = baseHP + hpBonus;
+            
+            const baseSpeed = tankType.speed;
+            const speedBonus = UPGRADES.speed.val(ups.speed);
+            const totalSpeed = baseSpeed * (1 + speedBonus);
+            
+            const baseDmg = tankType.damage;
+            const dmgBonus = UPGRADES.damage.val(ups.damage);
+            const totalDmg = baseDmg * (1 + dmgBonus);
+            
+            const baseRate = tankType.rate;
+            const rateBonus = UPGRADES.rate.val(ups.rate);
+            const totalRate = Math.max(5, baseRate * (1 - rateBonus));
+            
+            const rangeBonus = UPGRADES.range.val(ups.range);
+            const critChance = UPGRADES.critical.val(ups.critical);
 
             Game.player = {
                 x: 0, 
                 y: 0,
-                hp, 
-                maxHp: hp, 
-                speed,
-                weapon: { dmg, rate, lastShot: 0 },
-                size: 20, 
+                hp: totalHP, 
+                maxHp: totalHP, 
+                speed: totalSpeed,
+                weapon: { 
+                    dmg: totalDmg, 
+                    rate: totalRate, 
+                    lastShot: 0,
+                    range: 400 * (1 + rangeBonus),
+                    critChance: critChance
+                },
+                size: 24, 
                 angle: 0,
                 shieldCd: 0, 
-                shielded: false
+                shielded: false,
+                tankType: Game.data.selectedTank,
+                regenRate: UPGRADES.regen.val(ups.regen)
             };
 
-            // Allies
+            // الحلفاء
             Game.allies = [];
-            for(let i=0; i<ups.ally; i++) {
+            for(let i = 0; i < ups.ally; i++) {
                 Game.allies.push({
-                    x: Math.random()*50 - 25, 
-                    y: Math.random()*50 - 25,
-                    hp: hp*0.5, 
-                    speed: speed*1.1, 
-                    size: 15,
+                    x: Math.random() * 50 - 25, 
+                    y: Math.random() * 50 - 25,
+                    hp: totalHP * 0.5, 
+                    speed: totalSpeed * 1.1, 
+                    size: 16,
                     target: null, 
                     offset: {
-                        x: (Math.random()-0.5)*100, 
-                        y: (Math.random()-0.5)*100
-                    }
+                        x: (Math.random() - 0.5) * 100, 
+                        y: (Math.random() - 0.5) * 100
+                    },
+                    lastShot: 0
                 });
             }
 
-            Game.level = 1;
+            Game.currentZone = 1;
+            Game.currentWave = 1;
             Game.runGold = 0;
             Game.bullets = []; 
             Game.particles = []; 
             Game.texts = [];
+            Game.gameTime = 0;
+            Game.lastRegen = 0;
             
-            generateLevel(1);
+            generateZone(1);
             setScreen('GAME');
             updateHUD();
+            updateZoneUI();
             Audio.init();
         }
 
@@ -510,11 +814,14 @@
                 return;
             }
             
+            Game.gameTime++;
+            
             updatePlayer();
             updateAllies();
             updateEnemies();
             updateBullets();
             updateLogic();
+            updatePortalArrow();
             render();
             
             requestAnimationFrame(loop);
@@ -523,7 +830,7 @@
         function updatePlayer() {
             const p = Game.player;
             
-            // Movement
+            // الحركة
             if(Game.input.active) {
                 const len = Math.hypot(Game.input.x, Game.input.y);
                 if(len > 0) {
@@ -534,21 +841,37 @@
             }
             resolveWallCollision(p);
 
-            // Shooting
+            // إصلاح تلقائي
+            if(p.regenRate > 0 && Game.gameTime - Game.lastRegen > 600) {
+                const healAmount = p.maxHp * p.regenRate;
+                p.hp = Math.min(p.maxHp, p.hp + healAmount);
+                Game.lastRegen = Game.gameTime;
+                showFloatText(p.x, p.y, `+${Math.floor(healAmount)}❤️`, '#10b981');
+            }
+
+            // الرماية
             if(p.weapon.lastShot <= 0) {
-                let target = getNearestEnemy(p, 400);
+                let target = getNearestEnemy(p, p.weapon.range);
                 if(target && !isHiding(target)) {
-                    shoot(p, target, p.weapon.dmg, '#3b82f6', true);
+                    // حساب الضرر مع فرصة الضربة الحرجة
+                    let damage = p.weapon.dmg;
+                    let isCritical = false;
+                    if(Math.random() < p.weapon.critChance) {
+                        damage *= 2;
+                        isCritical = true;
+                    }
+                    
+                    shoot(p, target, damage, isCritical ? '#fbbf24' : TANK_TYPES[p.tankType].color, true);
                     p.weapon.lastShot = p.weapon.rate;
                 }
             }
             p.weapon.lastShot--;
 
-            // Shield Ability
+            // قدرة الدرع
             if(p.shieldCd > 0) {
                 p.shieldCd--;
                 const pct = 100 - (p.shieldCd / 300 * 100);
-                document.getElementById('abilityCd').style.height = (100-pct)+'%';
+                document.getElementById('abilityCd').style.height = (100 - pct) + '%';
             }
             if(p.shielded) {
                 p.shielded--;
@@ -559,12 +882,13 @@
             if(Game.player.shieldCd > 0) return;
             Game.player.shielded = 120;
             Game.player.shieldCd = 300;
-            spawnParticles(Game.player.x, Game.player.y, '#3b82f6', 20);
+            spawnParticles(Game.player.x, Game.player.y, '#3b82f6', 30);
+            Audio.play('portal');
         }
 
         function updateAllies() {
             Game.allies.forEach(a => {
-                // Follow Player
+                // متابعة اللاعب
                 const tx = Game.player.x + a.offset.x;
                 const ty = Game.player.y + a.offset.y;
                 const dx = tx - a.x; 
@@ -577,13 +901,15 @@
                     a.angle = Math.atan2(dy, dx);
                 }
 
-                // Shoot
-                if(Math.random() < 0.05) {
-                    let target = getNearestEnemy(a, 300);
+                // الرماية
+                if(a.lastShot <= 0) {
+                    let target = getNearestEnemy(a, 350);
                     if(target) {
-                        shoot(a, target, Game.player.weapon.dmg * 0.5, '#60a5fa', false);
+                        shoot(a, target, Game.player.weapon.dmg * 0.6, '#60a5fa', true);
+                        a.lastShot = 40;
                     }
                 }
+                a.lastShot--;
             });
         }
 
@@ -592,7 +918,7 @@
                 const distToPlayer = Math.hypot(Game.player.x - e.x, Game.player.y - e.y);
                 const playerHidden = isHiding(Game.player);
 
-                // AI
+                // الذكاء الاصطناعي
                 if(!playerHidden && distToPlayer < 600) {
                     const angle = Math.atan2(Game.player.y - e.y, Game.player.x - e.x);
                     e.angle = angle;
@@ -602,13 +928,13 @@
                         e.y += Math.sin(angle) * e.speed;
                     }
 
-                    // Shoot
+                    // الرماية
                     if(e.lastShot <= 0 && distToPlayer < 400 && hasLineOfSight(e, Game.player)) {
                         shoot(e, Game.player, e.weapon.dmg, e.color, false);
-                        e.lastShot = e.weapon.rate + Math.random()*20;
+                        e.lastShot = e.weapon.rate + Math.random() * 20;
                     }
                 } else {
-                    // Patrol
+                    // الدوريات
                     if(Math.random() < 0.02) e.angle = Math.random() * Math.PI * 2;
                     e.x += Math.cos(e.angle) * (e.speed * 0.5);
                     e.y += Math.sin(e.angle) * (e.speed * 0.5);
@@ -626,25 +952,25 @@
                 b.y += b.vy; 
                 b.life--;
                 
-                // Wall Collision
+                // تصادم مع الجدران
                 if(hitWall(b.x, b.y)) {
                     spawnParticles(b.x, b.y, '#fff', 3);
                     Game.bullets.splice(i, 1);
                     continue;
                 }
 
-                // Entity Collision
+                // تصادم مع الكائنات
                 let hit = false;
                 if(b.isPlayer) {
                     for(let e of Game.enemies) {
                         if(Math.hypot(e.x - b.x, e.y - b.y) < e.size + 5) {
-                            damageEnemy(e, b.dmg);
+                            damageEnemy(e, b.dmg, b.isCritical);
                             hit = true; 
                             break;
                         }
                     }
                 } else {
-                    // Enemy bullet hits player
+                    // رصاص العدو يصيب اللاعب
                     if(Math.hypot(Game.player.x - b.x, Game.player.y - b.y) < Game.player.size + 5) {
                         if(Game.player.shielded > 0) {
                             Audio.play('hit');
@@ -665,41 +991,141 @@
         }
 
         function updateLogic() {
-            // Portal Logic
+            // منطق البوابة
             if(Game.enemies.length === 0 && !Game.portalOpen) {
-                Game.portalOpen = true;
-                Game.portal.active = true;
-                Audio.play('portal');
-                document.getElementById('missionStatus').classList.remove('hidden');
+                // إذا هُزمت جميع الأعداء في الموجة
+                Game.enemiesDefeated += (Game.zoneEnemies - Game.enemiesDefeated > 5 ? 5 : Game.zoneEnemies - Game.enemiesDefeated);
+                
+                // التحقق من اكتمال المنطقة
+                if(Game.enemiesDefeated >= Game.zoneEnemies) {
+                    Game.portalOpen = true;
+                    Game.portal.active = true;
+                    Audio.play('portal');
+                    document.getElementById('missionStatus').classList.remove('hidden');
+                    document.getElementById('zoneWarning').classList.add('hidden');
+                } else {
+                    // موجة جديدة
+                    Game.currentWave++;
+                    setTimeout(() => {
+                        spawnWave(Game.currentWave, Game.currentZone);
+                    }, 2000);
+                    
+                    // تحذير المنطقة
+                    if(Game.enemiesDefeated >= Game.zoneEnemies * 0.7) {
+                        document.getElementById('zoneWarning').classList.remove('hidden');
+                    }
+                }
+                
+                updateZoneUI();
             }
 
+            // تفاعل البوابة
             if(Game.portalOpen) {
-                if(Math.hypot(Game.player.x - Game.portal.x, Game.player.y - Game.portal.y) < 50) {
-                    // Next Level
-                    Game.level++;
-                    Game.player.hp = Math.min(Game.player.maxHp, Game.player.hp + Game.player.maxHp * 0.3);
+                if(Math.hypot(Game.player.x - Game.portal.x, Game.player.y - Game.portal.y) < 60) {
+                    // الانتقال للمنطقة التالية
+                    Game.currentZone++;
+                    Game.currentWave = 1;
                     
-                    const bonus = Game.level * 50;
-                    Game.runGold += bonus;
-                    showFloatText(Game.player.x, Game.player.y, `+${bonus} 💎`, '#fbbf24');
+                    // مكافأة المنطقة
+                    const zoneBonus = Game.currentZone * 100;
+                    Game.runGold += zoneBonus;
+                    Game.player.hp = Math.min(Game.player.maxHp, Game.player.hp + Game.player.maxHp * 0.5);
+                    
+                    showFloatText(Game.player.x, Game.player.y, `منطقة ${Game.currentZone}! +${zoneBonus}💎`, '#a855f7');
                     
                     document.getElementById('missionStatus').classList.add('hidden');
-                    generateLevel(Game.level);
+                    generateZone(Game.currentZone);
+                    
+                    // تحديث السهم
+                    updatePortalArrow();
                 }
             }
 
             updateHUD();
+            updateZoneUI();
+        }
+
+        function updatePortalArrow() {
+            const arrow = document.getElementById('portalArrow');
+            
+            if(!Game.portalOpen || !Game.portal) {
+                arrow.classList.add('hidden');
+                return;
+            }
+            
+            arrow.classList.remove('hidden');
+            
+            // حساب الاتجاه نحو البوابة
+            const dx = Game.portal.x - Game.player.x;
+            const dy = Game.portal.y - Game.player.y;
+            const distance = Math.hypot(dx, dy);
+            const angle = Math.atan2(dy, dx);
+            
+            // تحديد موقع السهم فوق الدبابة
+            const arrowDistance = 80;
+            const screenX = W/2 + Math.cos(angle) * arrowDistance;
+            const screenY = H/2 + Math.sin(angle) * arrowDistance;
+            
+            arrow.style.left = (screenX - 20) + 'px';
+            arrow.style.top = (screenY - 40) + 'px';
+            
+            // تدوير السهم
+            const rotation = angle + Math.PI / 2;
+            arrow.style.transform = `rotate(${rotation}rad)`;
+            
+            // تغيير اللون بناءً على المسافة
+            if(distance < 300) {
+                arrow.style.color = '#10b981';
+                arrow.style.filter = 'drop-shadow(0 0 15px #10b981)';
+            } else if(distance < 600) {
+                arrow.style.color = '#fbbf24';
+                arrow.style.filter = 'drop-shadow(0 0 15px #fbbf24)';
+            } else {
+                arrow.style.color = '#a855f7';
+                arrow.style.filter = 'drop-shadow(0 0 15px #a855f7)';
+            }
         }
 
         function updateHUD() {
             if(!Game.player) return;
+            
             document.getElementById('enemiesLeft').innerText = `الأعداء: ${Game.enemies.length}`;
             document.getElementById('hpBar').style.width = Math.max(0, (Game.player.hp / Game.player.maxHp * 100)) + '%';
             document.getElementById('goldDisplay').innerText = Game.runGold;
-            document.getElementById('levelDisplay').innerText = Game.level;
+            document.getElementById('zoneDisplay').innerText = Game.currentZone;
+            document.getElementById('waveDisplay').innerText = Game.currentWave;
+            document.getElementById('tankType').innerText = TANK_TYPES[Game.player.tankType].name;
         }
 
-        // --- Physics & Utils ---
+        function updateZoneUI() {
+            const progress = Game.enemiesDefeated / Game.zoneEnemies * 100;
+            document.getElementById('zoneProgress').innerText = `التقدم: ${Math.round(progress)}%`;
+            
+            // تغيير لون التقدم
+            const progressElement = document.getElementById('zoneProgress');
+            if(progress > 70) {
+                progressElement.style.color = '#10b981';
+            } else if(progress > 40) {
+                progressElement.style.color = '#fbbf24';
+            } else {
+                progressElement.style.color = '#ef4444';
+            }
+        }
+
+        function showZoneInfo(zone, theme) {
+            const zoneText = document.createElement('div');
+            zoneText.className = 'dmg-text';
+            zoneText.style.color = '#a855f7';
+            zoneText.style.fontSize = '2.5rem';
+            zoneText.style.left = '50%';
+            zoneText.style.top = '40%';
+            zoneText.style.transform = 'translate(-50%, -50%)';
+            zoneText.innerText = `المنطقة ${zone}: ${theme}`;
+            document.body.appendChild(zoneText);
+            setTimeout(() => zoneText.remove(), 3000);
+        }
+
+        // --- الفيزياء والادوات المساعدة ---
         function resolveWallCollision(ent) {
             for(let w of Game.walls) {
                 let cx = Math.max(w.x, Math.min(ent.x, w.x + w.w));
@@ -763,21 +1189,39 @@
                 life: 100, 
                 dmg, 
                 color, 
-                isPlayer
+                isPlayer,
+                isCritical: color === '#fbbf24'
             });
             if(isPlayer) Audio.play('shoot');
         }
 
-        function damageEnemy(e, amt) {
+        function damageEnemy(e, amt, isCritical) {
             e.hp -= amt;
-            showFloatText(e.x, e.y, Math.floor(amt), '#fff');
+            
+            // عرض الضرر
+            const damageColor = isCritical ? '#fbbf24' : '#fff';
+            const damageText = isCritical ? `CRIT! ${Math.floor(amt)}` : Math.floor(amt);
+            showFloatText(e.x, e.y, damageText, damageColor);
+            
             if(e.hp <= 0) {
                 const index = Game.enemies.indexOf(e);
                 if(index !== -1) {
                     Game.enemies.splice(index, 1);
-                    spawnParticles(e.x, e.y, e.color, 10);
+                    Game.enemiesDefeated++;
+                    
+                    // جسيمات التدمير
+                    spawnParticles(e.x, e.y, e.color, 15);
                     Audio.play('kill');
-                    Game.runGold += Math.floor(Math.random() * 5) + 1;
+                    
+                    // مكافأة الذهب
+                    const goldReward = e.score || 10;
+                    Game.runGold += goldReward;
+                    
+                    // عرض المكافأة
+                    if(Math.random() < 0.3 || isCritical) {
+                        spawnParticles(e.x, e.y, '#fbbf24', 5);
+                        showFloatText(e.x, e.y, `+${goldReward}💎`, '#fbbf24');
+                    }
                 }
             }
         }
@@ -801,14 +1245,132 @@
                     vx: (Math.random()-0.5)*10, 
                     vy: (Math.random()-0.5)*10,
                     life: 1, 
-                    col
+                    col,
+                    size: Math.random() * 4 + 2
                 });
             }
         }
 
-        // --- Render ---
+        // --- الرسم ---
+        function drawTank(x, y, angle, tankType, isShielded) {
+            const tank = TANK_TYPES[tankType];
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            
+            // رسم هيكل الدبابة حسب النوع
+            switch(tankType) {
+                case 'basic':
+                    // الهيكل الأساسي
+                    ctx.fillStyle = tank.color;
+                    ctx.fillRect(-12, -12, 24, 24);
+                    // المسارات
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(-12, -15, 24, 6);
+                    ctx.fillRect(-12, 9, 24, 6);
+                    // البرج
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, -4, 25, 8);
+                    break;
+                    
+                case 'assault':
+                    // دبابة اقتحام (خفيفة وسريعة)
+                    ctx.fillStyle = tank.color;
+                    ctx.beginPath();
+                    ctx.roundRect(-10, -10, 20, 20, 5);
+                    ctx.fill();
+                    // تفاصيل
+                    ctx.fillStyle = '#1e40af';
+                    ctx.fillRect(-8, -12, 16, 4);
+                    ctx.fillRect(-8, 8, 16, 4);
+                    // برج طويل
+                    ctx.fillStyle = '#1e3a8a';
+                    ctx.fillRect(0, -3, 30, 6);
+                    break;
+                    
+                case 'heavy':
+                    // دبابة ثقيلة
+                    ctx.fillStyle = tank.color;
+                    ctx.fillRect(-15, -15, 30, 30);
+                    // درع إضافي
+                    ctx.fillStyle = '#991b1b';
+                    ctx.fillRect(-12, -18, 24, 6);
+                    ctx.fillRect(-12, 12, 24, 6);
+                    ctx.fillRect(-18, -12, 6, 24);
+                    ctx.fillRect(12, -12, 6, 24);
+                    // برج قصير وثقيل
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, -5, 20, 10);
+                    break;
+                    
+                case 'sniper':
+                    // دبابة قناص
+                    ctx.fillStyle = tank.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 10, 8, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // برج طويل جداً
+                    ctx.fillStyle = '#047857';
+                    ctx.fillRect(0, -2, 35, 4);
+                    // منظار
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(30, 0, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                    
+                case 'tank':
+                    // دبابة حربية متعددة الاستخدامات
+                    ctx.fillStyle = tank.color;
+                    ctx.beginPath();
+                    ctx.roundRect(-13, -13, 26, 26, 6);
+                    ctx.fill();
+                    // مسارات مزدوجة
+                    ctx.fillStyle = '#5b21b6';
+                    ctx.fillRect(-13, -16, 26, 6);
+                    ctx.fillRect(-13, 10, 26, 6);
+                    // برج متوسط
+                    ctx.fillStyle = '#4c1d95';
+                    ctx.fillRect(0, -4, 22, 8);
+                    break;
+                    
+                case 'elite':
+                    // دبابة النخبة
+                    const gradient = ctx.createLinearGradient(-15, -15, 15, 15);
+                    gradient.addColorStop(0, '#fbbf24');
+                    gradient.addColorStop(1, '#f59e0b');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.roundRect(-14, -14, 28, 28, 7);
+                    ctx.fill();
+                    // تفاصيل متطورة
+                    ctx.fillStyle = '#d97706';
+                    ctx.fillRect(-12, -17, 24, 6);
+                    ctx.fillRect(-12, 11, 24, 6);
+                    // برج مزدوج
+                    ctx.fillStyle = '#b45309';
+                    ctx.fillRect(0, -5, 28, 10);
+                    // مدافع مزدوجة
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(28, -3, 8, 6);
+                    ctx.fillRect(28, -1, 15, 2);
+                    break;
+            }
+            
+            ctx.restore();
+            
+            // تأثير الدرع
+            if(isShielded) {
+                ctx.strokeStyle = 'rgba(96, 165, 250, 0.7)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(x, y, Game.player.size * 1.2, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
         function render() {
-            // Shake
+            // تأثير اهتزاز الكاميرا
             if(Game.camera.shake > 0) {
                 ctx.setTransform(1, 0, 0, 1, (Math.random()-0.5)*Game.camera.shake, (Math.random()-0.5)*Game.camera.shake);
                 Game.camera.shake *= 0.9;
@@ -817,6 +1379,7 @@
                 ctx.setTransform(1, 0, 0, 1, 0, 0); 
             }
 
+            // الخلفية
             ctx.fillStyle = '#050505'; 
             ctx.fillRect(0, 0, W, H);
 
@@ -825,9 +1388,9 @@
             const camY = H/2 - p.y;
             ctx.translate(camX, camY);
 
-            // Draw Floor Grid
+            // شبكة الأرضية
             ctx.strokeStyle = '#111'; 
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1;
             const gs = 100;
             const sx = Math.floor((p.x - W/2)/gs)*gs;
             const sy = Math.floor((p.y - H/2)/gs)*gs;
@@ -842,92 +1405,146 @@
             }
             ctx.stroke();
 
-            // Grass
-            ctx.fillStyle = '#064e3b';
-            Game.grass.forEach(g => ctx.fillRect(g.x, g.y, g.w, g.h));
+            // علامات المنطقة
+            Game.zoneMarkers.forEach(marker => {
+                ctx.fillStyle = marker.color + '30';
+                ctx.beginPath();
+                ctx.arc(marker.x, marker.y, marker.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = marker.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(marker.x, marker.y, marker.size, 0, Math.PI * 2);
+                ctx.stroke();
+            });
 
-            // Walls
-            ctx.fillStyle = '#0f172a'; 
-            ctx.strokeStyle = '#0ea5e9'; 
-            ctx.lineWidth = 2;
+            // الغطاء
+            Game.grass.forEach(g => {
+                ctx.fillStyle = g.color || '#064e3b60';
+                ctx.fillRect(g.x, g.y, g.w, g.h);
+            });
+
+            // الجدران
             Game.walls.forEach(w => {
+                ctx.fillStyle = w.color || '#0f172a'; 
                 ctx.fillRect(w.x, w.y, w.w, w.h);
+                ctx.strokeStyle = w.color ? w.color + '80' : '#0ea5e9'; 
+                ctx.lineWidth = 2;
                 ctx.strokeRect(w.x, w.y, w.w, w.h);
             });
 
-            // Portal
+            // البوابة
             if(Game.portalOpen) {
-                ctx.fillStyle = `rgba(168, 85, 247, ${0.5 + Math.sin(Date.now()*0.01)*0.2})`;
+                const portalAlpha = 0.6 + Math.sin(Date.now()*0.005)*0.2;
+                ctx.fillStyle = Game.portal.color + Math.floor(portalAlpha * 255).toString(16);
                 ctx.beginPath(); 
                 ctx.arc(Game.portal.x, Game.portal.y, Game.portal.r, 0, Math.PI*2); 
                 ctx.fill();
+                
+                // تأثير دوامي
                 ctx.strokeStyle = '#fff'; 
-                ctx.stroke();
+                ctx.lineWidth = 3;
+                for(let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(Game.portal.x, Game.portal.y, Game.portal.r * (0.7 + i * 0.1), 
+                           Date.now()*0.002 + i, Date.now()*0.002 + i + Math.PI * 1.5);
+                    ctx.stroke();
+                }
             }
 
-            // Enemies
+            // الأعداء
             Game.enemies.forEach(e => {
                 const hidden = isHiding(e);
-                ctx.globalAlpha = hidden ? 0.3 : 1;
+                ctx.globalAlpha = hidden ? 0.4 : 1;
                 
                 ctx.save();
                 ctx.translate(e.x, e.y);
                 ctx.rotate(e.angle);
                 
-                // Body
+                // رسم العدو حسب النوع
                 ctx.fillStyle = e.color;
-                ctx.fillRect(-e.size/2, -e.size/2, e.size, e.size);
-                // Turret
+                
+                if(e.type === 'boss') {
+                    // رسم الزعيم
+                    ctx.fillRect(-e.size/2, -e.size/2, e.size, e.size);
+                    // تاج الزعيم
+                    ctx.fillStyle = '#fbbf24';
+                    for(let i = 0; i < 3; i++) {
+                        const spikeAngle = (i / 3) * Math.PI * 2;
+                        ctx.beginPath();
+                        ctx.moveTo(0, -e.size/2);
+                        ctx.lineTo(Math.cos(spikeAngle) * 10, -e.size/2 - 15);
+                        ctx.lineTo(Math.cos(spikeAngle + 0.5) * 10, -e.size/2);
+                        ctx.fill();
+                    }
+                } else {
+                    // رسم الأعداء العاديين
+                    ctx.fillRect(-e.size/2, -e.size/2, e.size, e.size);
+                }
+                
+                // برج العدو
                 ctx.fillStyle = '#000'; 
-                ctx.fillRect(0, -2, e.size, 4);
+                ctx.fillRect(0, -2, e.size * 0.8, 4);
                 
                 ctx.restore();
+                
+                // شريط الصحة
+                if(e.hp < e.maxHp) {
+                    const barWidth = e.size * 2;
+                    const barHeight = 4;
+                    const barX = e.x - barWidth/2;
+                    const barY = e.y - e.size - 8;
+                    
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fillRect(barX, barY, barWidth, barHeight);
+                    
+                    ctx.fillStyle = e.hp > e.maxHp * 0.5 ? '#10b981' : 
+                                   e.hp > e.maxHp * 0.25 ? '#fbbf24' : '#ef4444';
+                    ctx.fillRect(barX, barY, barWidth * (e.hp / e.maxHp), barHeight);
+                }
+                
                 ctx.globalAlpha = 1;
             });
 
-            // Allies
+            // الحلفاء
             Game.allies.forEach(a => {
                 ctx.save(); 
                 ctx.translate(a.x, a.y); 
                 ctx.rotate(a.angle);
+                // رسم الحليف كدرون
                 ctx.fillStyle = '#60a5fa'; 
-                ctx.fillRect(-7, -7, 14, 14);
+                ctx.beginPath();
+                ctx.arc(0, 0, a.size/2, 0, Math.PI * 2);
+                ctx.fill();
+                
                 ctx.fillStyle = '#fff'; 
                 ctx.fillRect(0, -1, 10, 2);
                 ctx.restore();
             });
 
-            // Player
+            // اللاعب (الدبابة)
             const pHidden = isHiding(p);
-            ctx.globalAlpha = pHidden ? 0.5 : 1;
-            ctx.save();
-            ctx.translate(p.x, p.y);
-            ctx.rotate(p.angle);
-            // Tracks
-            ctx.fillStyle = '#333'; 
-            ctx.fillRect(-12, -15, 24, 6); 
-            ctx.fillRect(-12, 9, 24, 6);
-            // Body
-            ctx.fillStyle = p.shielded ? '#fff' : '#22d3ee'; 
-            ctx.shadowBlur = p.shielded ? 20 : 10; 
-            ctx.shadowColor = ctx.fillStyle;
-            ctx.fillRect(-10, -10, 20, 20);
-            // Turret
-            ctx.fillStyle = '#000'; 
-            ctx.fillRect(0, -3, 25, 6);
-            ctx.restore();
-            ctx.shadowBlur = 0; 
+            ctx.globalAlpha = pHidden ? 0.6 : 1;
+            
+            drawTank(p.x, p.y, p.angle, p.tankType, p.shielded > 0);
+            
             ctx.globalAlpha = 1;
 
-            // Bullets
+            // الرصاص
             Game.bullets.forEach(b => {
                 ctx.fillStyle = b.color;
+                if(b.isCritical) {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = b.color;
+                }
                 ctx.beginPath(); 
-                ctx.arc(b.x, b.y, 4, 0, Math.PI*2); 
+                ctx.arc(b.x, b.y, b.isCritical ? 6 : 4, 0, Math.PI*2); 
                 ctx.fill();
+                ctx.shadowBlur = 0;
             });
 
-            // Particles
+            // الجسيمات
             for(let i = Game.particles.length - 1; i >= 0; i--) {
                 const pt = Game.particles[i];
                 pt.x += pt.vx; 
@@ -935,7 +1552,7 @@
                 pt.life -= 0.05;
                 ctx.globalAlpha = pt.life; 
                 ctx.fillStyle = pt.col;
-                ctx.fillRect(pt.x, pt.y, 4, 4);
+                ctx.fillRect(pt.x, pt.y, pt.size || 4, pt.size || 4);
                 if(pt.life <= 0) {
                     Game.particles.splice(i, 1);
                 }
@@ -945,28 +1562,151 @@
             ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
 
-        // --- Save/Load & Menu ---
+        // --- نظام الحفظ والتحميل ---
         function saveGame() {
-            localStorage.setItem('panzer_save', JSON.stringify(Game.data));
+            localStorage.setItem('panzer_zone_save', JSON.stringify(Game.data));
         }
         
         function loadGame() {
-            const saved = localStorage.getItem('panzer_save');
+            const saved = localStorage.getItem('panzer_zone_save');
             if(saved) {
                 try {
                     const loadedData = JSON.parse(saved);
                     Game.data = { ...Game.data, ...loadedData };
+                    
+                    // التأكد من وجود جميع التطويرات
+                    Object.keys(UPGRADES).forEach(key => {
+                        if(!Game.data.upgrades[key]) {
+                            Game.data.upgrades[key] = 0;
+                        }
+                    });
+                    
+                    // التأكد من وجود الدبابات الأساسية
+                    if(!Game.data.unlockedTanks) Game.data.unlockedTanks = ['basic'];
+                    if(!Game.data.selectedTank) Game.data.selectedTank = 'basic';
+                    
                 } catch (e) {
                     console.log("Error loading save:", e);
                 }
             }
             updateMenuUI();
+            loadTankSelection();
         }
 
         function updateMenuUI() {
             document.getElementById('menuGold').innerText = Game.data.gold;
         }
 
+        // --- نظام الدبابات ---
+        function loadTankSelection() {
+            const selection = document.getElementById('tankSelection');
+            selection.innerHTML = '';
+            
+            Object.entries(TANK_TYPES).forEach(([key, tank]) => {
+                const isUnlocked = Game.data.unlockedTanks.includes(key);
+                const isSelected = Game.data.selectedTank === key;
+                
+                const card = document.createElement('div');
+                card.className = `tank-card p-3 rounded-lg text-center ${isSelected ? 'selected' : ''} ${isUnlocked ? 'cursor-pointer' : 'opacity-50'}`;
+                card.style.backgroundColor = tank.color + '20';
+                card.style.borderColor = isSelected ? tank.color : 'transparent';
+                
+                card.innerHTML = `
+                    <div class="text-lg font-bold text-white mb-1">${tank.name}</div>
+                    <div class="text-xs text-gray-300 mb-2">${tank.desc}</div>
+                    ${!isUnlocked ? `<div class="text-yellow-400 text-sm mb-2">${tank.cost} 💎</div>` : ''}
+                    <div class="flex justify-center mb-2">
+                        <div class="w-8 h-8 rounded" style="background-color: ${tank.color}"></div>
+                    </div>
+                    <div class="text-xs text-gray-400">${tank.special}</div>
+                `;
+                
+                if(isUnlocked) {
+                    card.onclick = () => {
+                        Game.data.selectedTank = key;
+                        saveGame();
+                        loadTankSelection();
+                    };
+                } else {
+                    card.onclick = () => {
+                        if(Game.data.gold >= tank.cost) {
+                            Game.data.gold -= tank.cost;
+                            Game.data.unlockedTanks.push(key);
+                            Game.data.selectedTank = key;
+                            saveGame();
+                            loadTankSelection();
+                            updateMenuUI();
+                            Audio.play('upgrade');
+                        }
+                    };
+                }
+                
+                selection.appendChild(card);
+            });
+        }
+
+        function renderTankShop() {
+            const list = document.getElementById('tankList');
+            list.innerHTML = '';
+            document.getElementById('tankGoldDisplay').innerText = Game.data.gold + " 💎";
+            
+            Object.entries(TANK_TYPES).forEach(([key, tank]) => {
+                const isUnlocked = Game.data.unlockedTanks.includes(key);
+                const isSelected = Game.data.selectedTank === key;
+                
+                const div = document.createElement('div');
+                div.className = "glass-panel p-4 rounded-xl";
+                div.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 rounded-lg flex items-center justify-center" style="background-color: ${tank.color}20; border: 2px solid ${tank.color}">
+                            <div class="w-10 h-10 rounded" style="background-color: ${tank.color}"></div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-bold text-white text-lg flex items-center gap-2">
+                                ${tank.name}
+                                ${isSelected ? '<span class="text-xs bg-green-600 px-2 py-1 rounded">مختارة</span>' : ''}
+                                ${isUnlocked ? '<span class="text-xs bg-blue-600 px-2 py-1 rounded">مفتوحة</span>' : ''}
+                            </div>
+                            <div class="text-gray-300 text-sm mt-1">${tank.desc}</div>
+                            <div class="flex gap-4 mt-2 text-xs">
+                                <div class="text-cyan-400">❤️ ${tank.hp}</div>
+                                <div class="text-red-400">⚔️ ${tank.damage}</div>
+                                <div class="text-blue-400">⚡ ${tank.speed}</div>
+                                <div class="text-yellow-400">🎯 ${tank.rate}</div>
+                            </div>
+                            <div class="text-gray-400 text-xs mt-2">${tank.special}</div>
+                        </div>
+                        <button class="px-4 py-2 rounded-lg font-bold text-sm ${isUnlocked ? (isSelected ? 'bg-gray-700 text-gray-500' : 'bg-blue-600 text-white cursor-pointer') : (Game.data.gold>=tank.cost ? 'bg-yellow-600 text-black cursor-pointer' : 'bg-gray-700 text-gray-500')}">
+                            ${isUnlocked ? (isSelected ? 'مختارة' : 'اختر') : tank.cost + '💎'}
+                        </button>
+                    </div>
+                `;
+                
+                if(isUnlocked && !isSelected) {
+                    div.querySelector('button').onclick = () => {
+                        Game.data.selectedTank = key;
+                        saveGame();
+                        renderTankShop();
+                    };
+                } else if(!isUnlocked) {
+                    if(Game.data.gold >= tank.cost) {
+                        div.querySelector('button').onclick = () => {
+                            Game.data.gold -= tank.cost;
+                            Game.data.unlockedTanks.push(key);
+                            Game.data.selectedTank = key;
+                            saveGame();
+                            renderTankShop();
+                            updateMenuUI();
+                            Audio.play('upgrade');
+                        };
+                    }
+                }
+                
+                list.appendChild(div);
+            });
+        }
+
+        // --- نظام التطويرات ---
         function renderShop() {
             const list = document.getElementById('shopList');
             list.innerHTML = '';
@@ -982,7 +1722,7 @@
                 div.className = "glass-panel p-4 rounded-xl flex justify-between items-center";
                 div.innerHTML = `
                     <div>
-                        <div class="font-bold text-white text-lg">${u.name} <span class="text-xs text-blue-400">Lv.${lvl}</span></div>
+                        <div class="font-bold text-white text-lg">${u.name} <span class="text-xs ${u.category === 'attack' ? 'text-red-400' : u.category === 'defense' ? 'text-green-400' : u.category === 'mobility' ? 'text-blue-400' : 'text-yellow-400'}">Lv.${lvl}</span></div>
                         <div class="text-gray-400 text-xs">${u.desc}</div>
                     </div>
                     <button class="px-4 py-2 rounded-lg font-bold text-sm ${Game.data.gold>=cost && !isMax ? 'bg-yellow-600 text-black cursor-pointer' : 'bg-gray-700 text-gray-500'}">
@@ -997,12 +1737,14 @@
                         saveGame();
                         Audio.play('coin');
                         renderShop();
+                        updateMenuUI();
                     };
                 }
                 list.appendChild(div);
             });
         }
 
+        // --- واجهات الشاشات ---
         function setScreen(s) {
             Game.state = s;
             document.querySelectorAll('.game-ui').forEach(el => el.classList.add('hidden'));
@@ -1011,12 +1753,16 @@
             if(s === 'MENU') { 
                 document.getElementById('mainMenu').classList.remove('hidden'); 
                 updateMenuUI(); 
+                loadTankSelection();
             }
             if(s === 'GAME') {
                 document.getElementById('hud').classList.remove('hidden');
             }
             if(s === 'SHOP') {
                 document.getElementById('shopScreen').classList.remove('hidden');
+            }
+            if(s === 'TANKS') {
+                document.getElementById('tankScreen').classList.remove('hidden');
             }
             if(s === 'GAMEOVER') {
                 document.getElementById('gameOverScreen').classList.remove('hidden');
@@ -1027,7 +1773,7 @@
             setScreen('GAMEOVER');
             Game.data.gold += Game.runGold;
             saveGame();
-            document.getElementById('endLevel').innerText = Game.level;
+            document.getElementById('endZone').innerText = Game.currentZone;
             document.getElementById('endGold').innerText = Game.runGold;
         }
 
@@ -1036,11 +1782,11 @@
             H = canvas.height = window.innerHeight; 
         }
 
-        // --- Initialize Game ---
+        // --- تهيئة اللعبة ---
         window.onload = () => {
             console.log("Game loading...");
             
-            // Hide loading screen after a short delay
+            // إخفاء شاشة التحميل بعد تأخير قصير
             setTimeout(() => {
                 document.getElementById('loadingOverlay').classList.add('hidden');
             }, 1000);
@@ -1050,17 +1796,22 @@
             
             loadGame();
             
-            // Setup event listeners
+            // إعداد مستمعي الأحداث
             document.getElementById('btnStart').onclick = startGame;
             document.getElementById('btnUpgrade').onclick = () => { 
                 setScreen('SHOP'); 
                 renderShop(); 
+            };
+            document.getElementById('btnTanks').onclick = () => { 
+                setScreen('TANKS'); 
+                renderTankShop(); 
             };
             document.getElementById('btnAllies').onclick = () => { 
                 setScreen('SHOP'); 
                 renderShop(); 
             };
             document.getElementById('btnBackToMenu').onclick = () => setScreen('MENU');
+            document.getElementById('btnBackToMenuFromTanks').onclick = () => setScreen('MENU');
             document.getElementById('btnRestart').onclick = startGame;
             document.getElementById('btnToMenu').onclick = () => setScreen('MENU');
             document.getElementById('abilityBtn').onclick = useAbility;
@@ -1069,7 +1820,7 @@
                 location.reload(); 
             };
             
-            // Mobile controls
+            // التحكم باللمس
             let isDragging = false;
             
             canvas.addEventListener('pointerdown', (e) => {
@@ -1092,7 +1843,7 @@
                 Game.input.x = Math.cos(angle) * dist;
                 Game.input.y = Math.sin(angle) * dist;
                 
-                // Update start position for smooth movement
+                // تحديث موقع البداية لحركة سلسة
                 Game.input.px = e.clientX;
                 Game.input.py = e.clientY;
             });
@@ -1104,15 +1855,15 @@
                 Game.input.y = 0;
             });
             
-            // Start game loop
+            // بدء حلقة اللعبة
             requestAnimationFrame(loop);
             
-            // Show menu
+            // عرض القائمة
             setScreen('MENU');
             console.log("Game initialized successfully!");
         };
 
-        // Expose to window for debugging
+        // جعل الدوال متاحة للنافذة للتصحيح
         window.Game = Game;
         window.setScreen = setScreen;
         window.startGame = startGame;
